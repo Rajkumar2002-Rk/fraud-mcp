@@ -155,7 +155,7 @@ case if warranted."*
 
 ## The tools
 
-### `check_velocity_rules(account_id)`
+### `evaluate_fraud_rules(account_id)`
 
 The authoritative risk verdict. Runs all six rules and returns which fired, which
 did not, and which could not be evaluated. Deterministic.
@@ -316,13 +316,13 @@ both. Raw transcripts are in `notes/runs/`.
 
 The short version:
 
-* **All four v0 runs called `get_transactions` before `check_velocity_rules`** —
+* **All four v0 runs called `get_transactions` before `evaluate_fraud_rules`** —
   forming an opinion from raw rows before asking the deterministic engine, which
   is precisely the failure this design exists to prevent. All five v1 runs
   reversed it. The fix was three pieces of prose, the most effective of which
   told a tool what it is *not*.
 * **Opaque errors cost 21 wasted calls.** `"Error executing tool
-  check_velocity_rules"` cannot be recovered from; a typed code with a mandatory
+  evaluate_fraud_rules"` cannot be recovered from; a typed code with a mandatory
   `remediation` can.
 * **The agent read my schema `examples` as data and called one.** A planted
   identifier in an example leaked the answer and made v1 look far better than it
@@ -336,5 +336,10 @@ The short version:
 * **The guard that mattered most wasn't in the interface at all.** It was
   `SKIPPED` as a third rule state, distinct from `NOT_FIRED`. Prose in a
   description is a suggestion; a state in the data model is a constraint.
+* **Some clients search for tools by keyword before loading their schemas**, so a
+  tool name has to win a search before its description can influence anything.
+  This one was called `check_velocity_rules` — a name describing one of its six
+  rules — until that surfaced. Renaming it to `evaluate_fraud_rules` is the one
+  fix in this project that came from running against a second client.
 
 That document is the point of the project. The server is the apparatus.

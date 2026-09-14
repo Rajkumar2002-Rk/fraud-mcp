@@ -10,6 +10,14 @@ numbers look good for the wrong reason.
 
 ---
 
+> **Note on tool names.** The rules tool was originally called
+> `check_velocity_rules` and was renamed to `evaluate_fraud_rules` as a result of
+> Run 1 below. Transcripts under `notes/runs/` and the quotations in this document
+> preserve the original name, because they are the record of what actually
+> happened — rewriting them to match current code would be falsifying the
+> evidence. `scripts/analyze_transcripts.py` accepts both names so historical runs
+> still analyse correctly.
+
 ## Method
 
 Two interfaces over an identical rules engine:

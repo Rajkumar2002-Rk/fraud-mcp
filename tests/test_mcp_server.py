@@ -21,7 +21,7 @@ from mcp.client._memory import InMemoryTransport
 
 from fraud_mcp.server import server
 
-EXPECTED_TOOLS = {"get_transactions", "check_velocity_rules", "lookup_device_history", "flag_case"}
+EXPECTED_TOOLS = {"get_transactions", "evaluate_fraud_rules", "lookup_device_history", "flag_case"}
 
 
 async def call(session: ClientSession, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -57,8 +57,8 @@ async def test_server_instructions_state_the_call_order():
         async with ClientSession(read, write) as session:
             init = await session.initialize()
         instructions = init.instructions or ""
-        assert "check_velocity_rules" in instructions
-        assert instructions.index("check_velocity_rules") < instructions.index("flag_case")
+        assert "evaluate_fraud_rules" in instructions
+        assert instructions.index("evaluate_fraud_rules") < instructions.index("flag_case")
 
 
 async def test_every_tool_documents_every_parameter():
@@ -94,7 +94,7 @@ async def test_read_only_tools_are_annotated_as_such():
 
 async def test_happy_path_over_the_wire():
     async with mcp_session() as session:
-        payload = await call(session, "check_velocity_rules", {"account_id": "ACC-1021"})
+        payload = await call(session, "evaluate_fraud_rules", {"account_id": "ACC-1021"})
         assert payload["ok"] is True
         assert "STRUCTURING" in payload["verdict"]["fired_rule_ids"]
         assert payload["provenance"]["rules_version"]
@@ -102,7 +102,7 @@ async def test_happy_path_over_the_wire():
 
 async def test_handler_level_error_is_a_structured_envelope():
     async with mcp_session() as session:
-        payload = await call(session, "check_velocity_rules", {"account_id": "ACC-9999"})
+        payload = await call(session, "evaluate_fraud_rules", {"account_id": "ACC-9999"})
         assert payload["ok"] is False
         assert payload["error"]["code"] == "UNKNOWN_ACCOUNT"
         assert payload["error"]["remediation"]
@@ -142,3 +142,23 @@ async def test_empty_window_returns_guidance_over_the_wire():
         assert payload["ok"] is True
         assert payload["transaction_count"] == 0
         assert payload["empty_result_guidance"]["do_not_conclude"]
+
+
+async def test_rules_tool_is_discoverable_by_the_vocabulary_of_the_task():
+    """Guards the rename from Desktop Run 1.
+
+    Some clients search for tools by keyword before loading their schemas, so a
+    tool has to win a search before its description can influence anything. The
+    old name, `check_velocity_rules`, described one of six rules and would not
+    plausibly match a query about laundering or takeover. The name and
+    description must carry the vocabulary an investigator would actually use.
+    """
+    async with mcp_session() as session:
+        tools = {t.name: t for t in (await session.list_tools()).tools}
+        assert "evaluate_fraud_rules" in tools
+        assert "check_velocity_rules" not in tools
+
+        haystack = (tools["evaluate_fraud_rules"].description or "").lower()
+        for term in ("structuring", "laundering", "takeover", "velocity",
+                     "cloned card", "shared device", "escalating"):
+            assert term in haystack, f"{term!r} missing from the rules tool description"

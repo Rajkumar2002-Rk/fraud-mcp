@@ -21,7 +21,7 @@ INSTRUCTIONS = """
 Fraud investigation tools backed by a deterministic rules engine.
 
 Recommended investigation order:
-  1. check_velocity_rules(account_id) - get the authoritative verdict first.
+  1. evaluate_fraud_rules(account_id) - get the authoritative verdict first.
   2. get_transactions(account_id, days) - pull the evidence the rules cite.
   3. lookup_device_history(device_id) - pivot on any device named in the evidence.
   4. flag_case(...) - only after 1-3, citing the rule ids that fired.
@@ -105,7 +105,7 @@ else:
         Field(
             description=(
                 "Case severity. Use the `highest_severity_fired` value returned by "
-                "check_velocity_rules. Do not pick a severity by intuition - if you deviate "
+                "evaluate_fraud_rules. Do not pick a severity by intuition - if you deviate "
                 "from the engine's value, the response will record a warning and you must "
                 "justify it."
             ),
@@ -116,8 +116,8 @@ else:
         Field(
             description=(
                 "The rule ids that justify this case - pass `fired_rule_ids` from the "
-                "check_velocity_rules response verbatim. Omitting this records the case as "
-                "UNSUPPORTED and unauditable. Always call check_velocity_rules first so you "
+                "evaluate_fraud_rules response verbatim. Omitting this records the case as "
+                "UNSUPPORTED and unauditable. Always call evaluate_fraud_rules first so you "
                 "have real ids to pass."
             ),
             examples=[["STRUCTURING"], ["SHARED_DEVICE", "NEW_GEO_HIGH_VALUE"]],
@@ -127,7 +127,7 @@ else:
 
 V0_DESCRIPTIONS = {
     "get_transactions": "Get recent transactions for an account.",
-    "check_velocity_rules": "Check velocity rules for an account and return the results.",
+    "evaluate_fraud_rules": "Check velocity rules for an account and return the results.",
     "lookup_device_history": "Look up the history for a device.",
     "flag_case": "Flag a case for an account.",
 }
@@ -155,7 +155,7 @@ def get_transactions(account_id: AccountId, days: Days) -> dict[str, Any]:
     """Return an account's transactions within a lookback window, with a summary.
 
     This is EVIDENCE, not a verdict. It does not evaluate risk. To learn whether
-    an account has tripped any fraud rule, call `check_velocity_rules` - reading
+    an account has tripped any fraud rule, call `evaluate_fraud_rules` - reading
     these rows and forming your own opinion is exactly what this server is built
     to prevent.
 
@@ -168,11 +168,11 @@ def get_transactions(account_id: AccountId, days: Days) -> dict[str, Any]:
 
 
 @server.tool(
-    description=_description("check_velocity_rules"),
+    description=_description("evaluate_fraud_rules"),
     title="Evaluate fraud rules (deterministic)",
     annotations={"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
 )
-def check_velocity_rules(account_id: AccountId) -> dict[str, Any]:
+def evaluate_fraud_rules(account_id: AccountId) -> dict[str, Any]:
     """Run all six fraud rules against an account and return which ones fired, and why.
 
     THIS IS THE AUTHORITATIVE RISK VERDICT. The engine is deterministic: the same
@@ -181,6 +181,14 @@ def check_velocity_rules(account_id: AccountId) -> dict[str, Any]:
 
     Rules evaluated: VELOCITY_BURST, AMOUNT_SPIKE, NEW_GEO_HIGH_VALUE, STRUCTURING,
     SHARED_DEVICE, IMPOSSIBLE_TRAVEL.
+
+    Covers, in plain terms: transaction velocity and card testing, spending
+    anomalies against the account's own baseline, unfamiliar geography, money
+    laundering by structuring or smurfing below a reporting threshold, account
+    takeover and credential stuffing via shared devices, and cloned cards
+    (impossible travel). Use this tool for ANY question about whether an account
+    is risky, compromised, laundering, or worth escalating - not only questions
+    phrased around velocity.
 
     Every rule returns one of three states, and the difference matters:
       FIRED     - the threshold was met; `evidence_txn_ids` lists the transactions.
@@ -195,7 +203,7 @@ def check_velocity_rules(account_id: AccountId) -> dict[str, Any]:
     Call this BEFORE flag_case. Takes no time window: each rule applies its own
     documented lookback.
     """
-    return tools.check_velocity_rules(account_id)
+    return tools.evaluate_fraud_rules(account_id)
 
 
 @server.tool(
@@ -231,7 +239,7 @@ def flag_case(
 ) -> dict[str, Any]:
     """Record an investigation outcome against an account. THIS WRITES TO THE CASE LOG.
 
-    Call this only after `check_velocity_rules`, and only when you can cite the
+    Call this only after `evaluate_fraud_rules`, and only when you can cite the
     rule ids that fired. The response includes an `audit` block that independently
     re-runs the rules engine and compares your submission against it: if you cite
     rules that are not firing, omit rule ids entirely, or set a severity the engine

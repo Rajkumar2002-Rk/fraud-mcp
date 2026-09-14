@@ -73,37 +73,37 @@ def test_non_empty_result_has_no_empty_guidance():
     assert "empty_result_guidance" not in tools.get_transactions("ACC-1007", 30)
 
 
-# ------------------------------------------------------- check_velocity_rules
+# ------------------------------------------------------- evaluate_fraud_rules
 
-def test_check_velocity_rules_happy_path():
-    resp = tools.check_velocity_rules("ACC-1021")
+def test_evaluate_fraud_rules_happy_path():
+    resp = tools.evaluate_fraud_rules("ACC-1021")
     assert resp["ok"] is True
     assert "STRUCTURING" in resp["verdict"]["fired_rule_ids"]
     assert resp["verdict"]["highest_severity_fired"] == "critical"
     assert len(resp["rule_results"]) == resp["verdict"]["rules_evaluated"] == 6
 
 
-def test_check_velocity_rules_reports_non_firing_rules_too():
-    resp = tools.check_velocity_rules("ACC-1002")
+def test_evaluate_fraud_rules_reports_non_firing_rules_too():
+    resp = tools.evaluate_fraud_rules("ACC-1002")
     assert resp["verdict"]["fired_rule_ids"] == []
     statuses = {r["rule_id"]: r["status"] for r in resp["rule_results"]}
     assert len(statuses) == 6
     assert "NOT_FIRED" in statuses.values()
 
 
-def test_check_velocity_rules_carries_interpretation_contract():
-    contract = tools.check_velocity_rules("ACC-1013")["interpretation_contract"]
+def test_evaluate_fraud_rules_carries_interpretation_contract():
+    contract = tools.evaluate_fraud_rules("ACC-1013")["interpretation_contract"]
     assert "deterministic" in contract["authority"]
     assert contract["your_role"]
     assert contract["skipped_is_not_clean"]
 
 
-def test_check_velocity_rules_unknown_account():
-    assert_error(tools.check_velocity_rules("ACC-4242"), ErrorCode.UNKNOWN_ACCOUNT)
+def test_evaluate_fraud_rules_unknown_account():
+    assert_error(tools.evaluate_fraud_rules("ACC-4242"), ErrorCode.UNKNOWN_ACCOUNT)
 
 
 def test_fired_rules_expose_thresholds_and_evidence():
-    for result in tools.check_velocity_rules("ACC-1013")["rule_results"]:
+    for result in tools.evaluate_fraud_rules("ACC-1013")["rule_results"]:
         if result["status"] == "FIRED":
             assert result["thresholds"]
             assert result["observed"]
@@ -202,7 +202,7 @@ def test_no_handler_ever_raises():
     """The contract: garbage in, structured error out - never a traceback."""
     for call in (
         lambda: tools.get_transactions(None, None),
-        lambda: tools.check_velocity_rules(12345),
+        lambda: tools.evaluate_fraud_rules(12345),
         lambda: tools.lookup_device_history({"device_id": "x"}),
         lambda: tools.flag_case([], [], []),
     ):

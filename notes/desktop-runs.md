@@ -5,6 +5,14 @@ The v0/v1 experiment in FINDINGS.md used Claude Code subagents talking through
 a different client, native tool-calling, human in the loop. It is the check on
 whether those findings survive outside the environment that produced them.
 
+> **Note on tool names.** The rules tool was originally called
+> `check_velocity_rules` and was renamed to `evaluate_fraud_rules` as a result of
+> Run 1 below. Transcripts under `notes/runs/` and the quotations in this document
+> preserve the original name, because they are the record of what actually
+> happened — rewriting them to match current code would be falsifying the
+> evidence. `scripts/analyze_transcripts.py` accepts both names so historical runs
+> still analyse correctly.
+
 Server config: `claude_desktop_config.json` → `uv run --directory <repo> python
 scripts/serve.py stdio`. Profile: v1 (default).
 
@@ -48,6 +56,14 @@ actually does and match more of the queries an agent would plausibly form.
 
 This is a class of failure the CLI harness structurally could not surface, and
 it is the strongest argument in the project for testing against a real client.
+
+**Acted on.** The tool is now `evaluate_fraud_rules`, and its description spells
+out the vocabulary an investigator would actually search with — structuring,
+smurfing, laundering, account takeover, credential stuffing, cloned cards — plus
+an explicit instruction to use it for *any* risk question, "not only questions
+phrased around velocity". `test_rules_tool_is_discoverable_by_the_vocabulary_of_the_task`
+asserts those terms are present, because a name and description that must win a
+keyword search are load-bearing code, and prose regresses silently.
 
 ### The documented call order was treated as priority, not as a script
 

@@ -173,7 +173,7 @@ def get_transactions(account_id: str, days: int) -> dict[str, Any]:
                 "next_step": (
                     f"This account has {total_ever} transactions overall"
                     + (f", most recently at {latest}." if latest else ".")
-                    + " Widen `days` to cover that period, and run check_velocity_rules, which "
+                    + " Widen `days` to cover that period, and run evaluate_fraud_rules, which "
                     "evaluates device and history signals this window does not contain."
                 ),
                 "total_transactions_all_time": total_ever,
@@ -193,7 +193,7 @@ def get_transactions(account_id: str, days: int) -> dict[str, Any]:
         conn.close()
 
 
-def check_velocity_rules(account_id: str) -> dict[str, Any]:
+def evaluate_fraud_rules(account_id: str) -> dict[str, Any]:
     conn = dbmod.connect()
     try:
         account_id = _require_account(conn, account_id)
@@ -231,7 +231,7 @@ def check_velocity_rules(account_id: str) -> dict[str, Any]:
                     "them as absence of risk."
                 ),
             },
-            "provenance": _provenance(conn, "check_velocity_rules",
+            "provenance": _provenance(conn, "evaluate_fraud_rules",
                                       {"account_id": account_id}),
         }
     except ToolError as exc:
@@ -256,7 +256,7 @@ def lookup_device_history(device_id: str) -> dict[str, Any]:
                 f"device_id must match 'DEV-<alphanumeric>'; got {device_id!r}.",
                 remediation=(
                     "Use a device_id exactly as returned by get_transactions "
-                    "(the `device_id` field) or by check_velocity_rules "
+                    "(the `device_id` field) or by evaluate_fraud_rules "
                     "(`evidence_device_ids` on the SHARED_DEVICE rule)."
                 ),
                 details={"expected_pattern": DEVICE_ID_RE.pattern, "received": repr(device_id)},
@@ -356,7 +356,7 @@ def flag_case(
                 ErrorCode.INVALID_ARGUMENT,
                 f"severity must be one of {VALID_SEVERITIES}; got {severity!r}.",
                 remediation=(
-                    "Use the `highest_severity_fired` value from check_velocity_rules rather "
+                    "Use the `highest_severity_fired` value from evaluate_fraud_rules rather "
                     "than choosing a severity yourself. The rules engine assigns severity; "
                     "your job is to justify it."
                 ),
@@ -386,7 +386,7 @@ def flag_case(
             raise ToolError(
                 ErrorCode.INVALID_ARGUMENT,
                 "rule_ids must be a list of strings, or omitted.",
-                remediation="Pass `fired_rule_ids` from the check_velocity_rules response.",
+                remediation="Pass `fired_rule_ids` from the evaluate_fraud_rules response.",
                 details={"received": repr(rule_ids)},
             )
 

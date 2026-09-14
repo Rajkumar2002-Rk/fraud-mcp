@@ -74,7 +74,7 @@ SCENARIOS: list[Scenario] = [
         premise="A customer reports charges they do not recognise on ACC-1007.",
         teaches="The ordinary happy path: verdict first, then evidence, then a case.",
         steps=[
-            Step("check_velocity_rules", {"account_id": "ACC-1007"},
+            Step("evaluate_fraud_rules", {"account_id": "ACC-1007"},
                  "Get the authoritative verdict before looking at anything else.",
                  [("ok", True), ("verdict.fired_rule_ids.0", "VELOCITY_BURST"),
                   ("verdict.highest_severity_fired", "high")]),
@@ -96,14 +96,14 @@ SCENARIOS: list[Scenario] = [
         premise="ACC-1013 shows a large purchase from an unfamiliar country.",
         teaches="Pivoting from account to device to find the other victims.",
         steps=[
-            Step("check_velocity_rules", {"account_id": "ACC-1013"},
+            Step("evaluate_fraud_rules", {"account_id": "ACC-1013"},
                  "Verdict first.",
                  [("ok", True), ("verdict.highest_severity_fired", "critical")]),
             Step("lookup_device_history", {"device_id": "DEV-ATO-01"},
                  "Pivot on the device named in the SHARED_DEVICE evidence.",
                  [("ok", True), ("distinct_accounts_with_events", 3),
                   ("password_reset_count", 3)]),
-            Step("check_velocity_rules", {"account_id": "ACC-1014"},
+            Step("evaluate_fraud_rules", {"account_id": "ACC-1014"},
                  "Check a co-located account surfaced by the device lookup.",
                  [("ok", True)]),
         ],
@@ -113,7 +113,7 @@ SCENARIOS: list[Scenario] = [
         premise="Compliance asks whether ACC-1021 is splitting payments.",
         teaches="A CRITICAL finding whose evidence is a set of individually boring rows.",
         steps=[
-            Step("check_velocity_rules", {"account_id": "ACC-1021"},
+            Step("evaluate_fraud_rules", {"account_id": "ACC-1021"},
                  "The rule, not the model, decides that this pattern is structuring.",
                  [("ok", True), ("verdict.highest_severity_fired", "critical")]),
             Step("get_transactions", {"account_id": "ACC-1021", "days": 5},
@@ -126,7 +126,7 @@ SCENARIOS: list[Scenario] = [
         premise="Routine review of ACC-1002, which has no planted pattern.",
         teaches="A clean account must come back clean - no rule may fire on noise.",
         steps=[
-            Step("check_velocity_rules", {"account_id": "ACC-1002"},
+            Step("evaluate_fraud_rules", {"account_id": "ACC-1002"},
                  "Expect an empty fired list and a null severity.",
                  [("ok", True), ("verdict.rules_fired", 0),
                   ("verdict.highest_severity_fired", None)]),
@@ -142,7 +142,7 @@ SCENARIOS: list[Scenario] = [
                  "An empty result that must not be read as 'clean'.",
                  [("ok", True), ("transaction_count", 0),
                   ("empty_result_guidance.total_transactions_all_time", 9)]),
-            Step("check_velocity_rules", {"account_id": "ACC-1009"},
+            Step("evaluate_fraud_rules", {"account_id": "ACC-1009"},
                  "Rules that cannot be evaluated report SKIPPED, not NOT_FIRED.",
                  [("ok", True), ("verdict.rules_fired", 0),
                   ("verdict.skipped_rule_ids.0", "AMOUNT_SPIKE")]),
@@ -156,7 +156,7 @@ SCENARIOS: list[Scenario] = [
         premise="The client sends malformed and out-of-range arguments.",
         teaches="Every failure is a structured envelope with a remediation, never a traceback.",
         steps=[
-            Step("check_velocity_rules", {"account_id": "ACC-9999"},
+            Step("evaluate_fraud_rules", {"account_id": "ACC-9999"},
                  "Unknown but well-formed account id.",
                  [("ok", False), ("error.code", "UNKNOWN_ACCOUNT")]),
             Step("get_transactions", {"account_id": "ACC-1013", "days": 9999},
@@ -235,7 +235,7 @@ def summarise(tool: str, payload: dict[str, Any]) -> str:
     if not payload.get("ok", True):
         err = payload["error"]
         return f"{RED}error{RESET} {err['code']}: {err['message']}"
-    if tool == "check_velocity_rules":
+    if tool == "evaluate_fraud_rules":
         v = payload["verdict"]
         fired = ", ".join(v["fired_rule_ids"]) or "none"
         skipped = ", ".join(v["skipped_rule_ids"])

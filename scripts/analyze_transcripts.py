@@ -6,7 +6,7 @@ matter for tool design - not whether the agent reached the right answer, but
 whether it used the tools in a way a reviewer could audit:
 
 * bad arguments, split into malformed shape vs. invented identifiers
-* call ordering: did `flag_case` come after `check_velocity_rules`?
+* call ordering: did `flag_case` come after `evaluate_fraud_rules`?
 * provenance: did the recorded case cite the rule ids that actually fired?
 * empty results: did the agent stop at an empty window, or widen it?
 
@@ -23,6 +23,14 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+
+# `check_velocity_rules` was renamed to `evaluate_fraud_rules` after the Claude
+# Desktop pass (see notes/desktop-runs.md, Run 1). Transcripts recorded before
+# the rename keep the old name and are deliberately not rewritten - they are the
+# evidence behind FINDINGS.md, and editing them to match current code would be
+# falsifying the record. Both names are accepted here so historical runs still
+# analyse correctly.
+RULES_TOOL_NAMES = frozenset({"evaluate_fraud_rules", "check_velocity_rules"})
 
 
 @dataclass
@@ -87,7 +95,7 @@ def analyse(path: Path) -> RunMetrics:
             elif code in ("INVALID_ARGUMENT", "CLIENT_JSON_ERROR"):
                 m.malformed_arguments += 1
 
-        if tool == "check_velocity_rules" and call.get("ok"):
+        if tool in RULES_TOOL_NAMES and call.get("ok"):
             seen_rules_call = True
 
         if tool == "flag_case":

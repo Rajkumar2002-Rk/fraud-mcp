@@ -17,7 +17,7 @@ are therefore somewhat over-represented here relative to a native client;
 ordering, empty-result, and provenance failures are not affected.
 
     uv run python scripts/agent_cli.py list-tools
-    uv run python scripts/agent_cli.py call check_velocity_rules '{"account_id": "ACC-1013"}'
+    uv run python scripts/agent_cli.py call evaluate_fraud_rules '{"account_id": "ACC-1013"}'
 """
 
 from __future__ import annotations

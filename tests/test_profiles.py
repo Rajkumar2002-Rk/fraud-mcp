@@ -55,7 +55,7 @@ def test_v1_adds_the_empty_result_guidance(monkeypatch):
 
 def test_v0_drops_the_interpretation_contract(monkeypatch):
     _, tools_v0 = reload_with_profile(monkeypatch, "v0")
-    assert tools_v0.check_velocity_rules("ACC-1021")["interpretation_contract"] is None
+    assert tools_v0.evaluate_fraud_rules("ACC-1021")["interpretation_contract"] is None
 
 
 def test_v0_drops_the_case_audit(monkeypatch):
@@ -69,19 +69,19 @@ def test_v0_raises_instead_of_returning_an_envelope(monkeypatch):
     from fraud_mcp.errors import ToolError
 
     with pytest.raises(ToolError):
-        tools_v0.check_velocity_rules("ACC-9999")
+        tools_v0.evaluate_fraud_rules("ACC-9999")
 
 
 def test_v0_serves_terse_schemas(monkeypatch):
     server_v0, _ = reload_with_profile(monkeypatch, "v0")
     assert server_v0.V0 is True
-    assert len(server_v0.V0_DESCRIPTIONS["check_velocity_rules"]) < 80
+    assert len(server_v0.V0_DESCRIPTIONS["evaluate_fraud_rules"]) < 80
 
 
 def test_the_rules_engine_is_identical_across_profiles(monkeypatch):
     """Only the interface changes. The verdicts must not."""
     _, tools_v0 = reload_with_profile(monkeypatch, "v0")
-    v0_verdict = tools_v0.check_velocity_rules("ACC-1013")["verdict"]
+    v0_verdict = tools_v0.evaluate_fraud_rules("ACC-1013")["verdict"]
     _, tools_v1 = reload_with_profile(monkeypatch, "v1")
-    v1_verdict = tools_v1.check_velocity_rules("ACC-1013")["verdict"]
+    v1_verdict = tools_v1.evaluate_fraud_rules("ACC-1013")["verdict"]
     assert v0_verdict == v1_verdict

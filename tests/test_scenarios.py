@@ -31,7 +31,7 @@ def test_every_scenario_asserts_something():
 def test_scenarios_cover_both_outcomes_and_failures():
     tools_exercised = {s.tool for sc in run_scenarios.SCENARIOS for s in sc.steps}
     assert tools_exercised == {
-        "get_transactions", "check_velocity_rules", "lookup_device_history", "flag_case",
+        "get_transactions", "evaluate_fraud_rules", "lookup_device_history", "flag_case",
     }
     expects_failure = [
         s for sc in run_scenarios.SCENARIOS for s in sc.steps if ("ok", False) in s.expect
