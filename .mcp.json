@@ -2,7 +2,7 @@
   "mcpServers": {
     "fraud-mcp": {
       "command": "uv",
-      "args": ["run", "--directory", ".", "fraud-mcp", "stdio"]
+      "args": ["run", "--directory", ".", "python", "scripts/serve.py", "stdio"]
     }
   }
 }

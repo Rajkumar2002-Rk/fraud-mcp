@@ -102,7 +102,7 @@ def connect(path: Path | str | None = None, *, read_only: bool = False) -> sqlit
     if read_only:
         if not target.exists():
             raise FileNotFoundError(
-                f"No dataset at {target}. Run `uv run fraud-mcp seed` first."
+                f"No dataset at {target}. Run `uv run python scripts/serve.py seed` first."
             )
         conn = sqlite3.connect(f"file:{target}?mode=ro", uri=True)
     else:
@@ -143,6 +143,6 @@ def as_of(conn: sqlite3.Connection) -> datetime:
     raw = get_meta(conn, "as_of")
     if raw is None:
         raise RuntimeError(
-            "Database has no 'as_of' marker. Run `uv run fraud-mcp seed` to build it."
+            "Database has no 'as_of' marker. Run `uv run python scripts/serve.py seed` to build it."
         )
     return datetime.fromisoformat(raw)

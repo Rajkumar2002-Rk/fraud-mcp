@@ -70,8 +70,8 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.12+.
 ```bash
 git clone <your-fork> && cd fraud-mcp
 uv sync --extra http
-uv run fraud-mcp seed      # build the synthetic dataset
-uv run fraud-mcp check     # print row counts and the as_of clock
+uv run python scripts/serve.py seed    # build the synthetic dataset
+uv run python scripts/serve.py check   # print row counts and the as_of clock
 ```
 
 Run the test suite and the end-to-end scenarios:
@@ -91,12 +91,21 @@ response. It is a scripted client, not an agent: fully reproducible.
 Run the server directly:
 
 ```bash
-uv run fraud-mcp stdio
+uv run python scripts/serve.py stdio
 ```
 
 ```bash
-uv run fraud-mcp http --port 8000
+uv run python scripts/serve.py http --port 8000
 ```
+
+> **Why `scripts/serve.py` and not the `fraud-mcp` console script?**
+> Both work, but `serve.py` puts `src/` on `sys.path` itself rather than relying
+> on the editable install. During development uv was observed to disable this
+> project's editable `.pth` entry after a source edit, so the console script
+> would fail with `ModuleNotFoundError` until the next
+> `uv sync --reinstall-package fraud-mcp`. An MCP server that intermittently
+> fails to start is a bad demo, so the documented entry point is the one that
+> keeps working across edits.
 
 The dataset lives in `~/.local/share/fraud-mcp/fraud.sqlite3` (override with
 `FRAUD_MCP_DB`). It is deliberately kept out of the repository: it is a generated
@@ -127,7 +136,8 @@ Add this to `claude_desktop_config.json`
         "run",
         "--directory",
         "/absolute/path/to/fraud-mcp",
-        "fraud-mcp",
+        "python",
+        "scripts/serve.py",
         "stdio"
       ]
     }

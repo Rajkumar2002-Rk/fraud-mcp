@@ -45,9 +45,7 @@ def main(argv: list[str] | None = None) -> int:
     from .server import server
 
     if command == "http":
-        server.settings.host = args.host
-        server.settings.port = args.port
-        server.run(transport="streamable-http")
+        server.run(transport="streamable-http", host=args.host, port=args.port)
     else:
         server.run(transport="stdio")
     return 0

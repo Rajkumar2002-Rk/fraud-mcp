@@ -55,7 +55,7 @@ else:
                 "reformat it."
             ),
             pattern=r"^ACC-\d{4}$",
-            examples=["ACC-1013", "ACC-1007"],
+            examples=["ACC-1000", "ACC-1234"],
         ),
     ]
     Days = Annotated[
@@ -77,13 +77,13 @@ else:
         str,
         Field(
             description=(
-                "Device identifier such as 'DEV-2007' or 'DEV-ATO-01'. Obtain it from the "
+                "Device identifier such as 'DEV-2000'. Obtain it from the "
                 "`device_id` field of a transaction, or from `evidence_device_ids` on a "
                 "SHARED_DEVICE rule result. Device ids are NOT derived from account ids - "
                 "'DEV-1013' is not the device for 'ACC-1013'."
             ),
             pattern=r"^DEV-[A-Za-z0-9-]{1,32}$",
-            examples=["DEV-ATO-01", "DEV-2007"],
+            examples=["DEV-2000", "DEV-4F2A"],
         ),
     ]
     CaseReason = Annotated[

@@ -187,7 +187,7 @@ def get_transactions(account_id: str, days: int) -> dict[str, Any]:
     except sqlite3.Error as exc:
         return error_envelope(
             ErrorCode.INTERNAL_ERROR, f"Database error: {exc}",
-            remediation="Re-run `uv run fraud-mcp seed` to rebuild the dataset.",
+            remediation="Re-run `uv run python scripts/serve.py seed` to rebuild the dataset.",
         )
     finally:
         conn.close()
@@ -241,7 +241,7 @@ def check_velocity_rules(account_id: str) -> dict[str, Any]:
     except sqlite3.Error as exc:
         return error_envelope(
             ErrorCode.INTERNAL_ERROR, f"Database error: {exc}",
-            remediation="Re-run `uv run fraud-mcp seed` to rebuild the dataset.",
+            remediation="Re-run `uv run python scripts/serve.py seed` to rebuild the dataset.",
         )
     finally:
         conn.close()
@@ -338,7 +338,7 @@ def lookup_device_history(device_id: str) -> dict[str, Any]:
     except sqlite3.Error as exc:
         return error_envelope(
             ErrorCode.INTERNAL_ERROR, f"Database error: {exc}",
-            remediation="Re-run `uv run fraud-mcp seed` to rebuild the dataset.",
+            remediation="Re-run `uv run python scripts/serve.py seed` to rebuild the dataset.",
         )
     finally:
         conn.close()
@@ -455,7 +455,7 @@ def flag_case(
     except sqlite3.Error as exc:
         return error_envelope(
             ErrorCode.INTERNAL_ERROR, f"Database error: {exc}",
-            remediation="Re-run `uv run fraud-mcp seed` to rebuild the dataset.",
+            remediation="Re-run `uv run python scripts/serve.py seed` to rebuild the dataset.",
         )
     finally:
         conn.close()

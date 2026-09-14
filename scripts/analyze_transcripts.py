@@ -34,6 +34,7 @@ class RunMetrics:
     failed_calls: int = 0
     error_codes: dict[str, int] = field(default_factory=dict)
     raw_exceptions: int = 0
+    opaque_errors: int = 0
     invented_identifiers: int = 0
     malformed_arguments: int = 0
     called_rules_before_flagging: bool | None = None
@@ -71,6 +72,11 @@ def analyse(path: Path) -> RunMetrics:
 
         if call.get("outcome") == "raw_exception" or "raw_exception" in response:
             m.raw_exceptions += 1
+            m.failed_calls += 1
+        elif isinstance(response, dict) and "raw_text" in response:
+            # v0: the failure carried no code, no message and no remediation -
+            # the agent got a bare "Error executing tool <name>" string.
+            m.opaque_errors += 1
             m.failed_calls += 1
         elif call.get("ok") is False:
             m.failed_calls += 1
@@ -120,6 +126,7 @@ def render(metrics: list[RunMetrics]) -> str:
         ("calls", lambda m: str(m.total_calls)),
         ("failed", lambda m: str(m.failed_calls)),
         ("raw exc", lambda m: str(m.raw_exceptions)),
+        ("opaque errors", lambda m: str(m.opaque_errors)),
         ("bad args", lambda m: str(m.malformed_arguments)),
         ("invented ids", lambda m: str(m.invented_identifiers)),
         ("first tool", lambda m: m.first_tool or "-"),
