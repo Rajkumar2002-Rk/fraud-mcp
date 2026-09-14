@@ -298,6 +298,7 @@ src/fraud_mcp/
 tests/            78 tests: rules, handlers, and the MCP protocol surface
 scripts/          run_scenarios.py — end-to-end investigation scenarios
 FINDINGS.md       Where an agent misused these tools, and what fixed it
+notes/runs/       Raw agent transcripts - the evidence behind FINDINGS.md
 ```
 
 `tools.py` is transport-agnostic on purpose: the tests exercise the same code an
@@ -307,9 +308,30 @@ agent hits, so there is no drift between what is tested and what is called.
 
 ## FINDINGS.md
 
-The companion document records what happened when an agent was actually pointed
-at this server: the arguments it got wrong, the call orders it invented, the
-places it acted confidently on an empty result, and the provenance it dropped —
-followed by the schema and description changes that fixed each one.
+[FINDINGS.md](FINDINGS.md) records what happened when an agent was actually
+pointed at this server. The experiment is a controlled one: `FRAUD_MCP_PROFILE=v0`
+serves the same rules engine behind a naive first-draft interface, `v1` serves it
+behind the hardened one, and the same five investigation tasks were run against
+both. Raw transcripts are in `notes/runs/`.
+
+The short version:
+
+* **All four v0 runs called `get_transactions` before `check_velocity_rules`** —
+  forming an opinion from raw rows before asking the deterministic engine, which
+  is precisely the failure this design exists to prevent. All five v1 runs
+  reversed it. The fix was three pieces of prose, the most effective of which
+  told a tool what it is *not*.
+* **Opaque errors cost 21 wasted calls.** `"Error executing tool
+  check_velocity_rules"` cannot be recovered from; a typed code with a mandatory
+  `remediation` can.
+* **The agent read my schema `examples` as data and called one.** A planted
+  identifier in an example leaked the answer and made v1 look far better than it
+  was, until the agent volunteered how it had got there.
+* **One failure no wording could fix:** with no way to list accounts or devices,
+  the agent brute-forced the identifier space — 119 calls in the honest rerun.
+  That needs a fifth tool, not a better description.
+* **The guard that mattered most wasn't in the interface at all.** It was
+  `SKIPPED` as a third rule state, distinct from `NOT_FIRED`. Prose in a
+  description is a suggestion; a state in the data model is a constraint.
 
 That document is the point of the project. The server is the apparatus.

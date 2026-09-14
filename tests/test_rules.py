@@ -127,3 +127,23 @@ def test_overall_severity_is_the_max_of_fired_rules(conn, now):
 
 def test_rules_version_is_pinned():
     assert RULES_VERSION
+
+
+def test_seeding_is_byte_reproducible(tmp_path):
+    """The dataset must be rebuildable identically, or no verdict is reproducible."""
+    import hashlib
+
+    from fraud_mcp.seed import build_database
+
+    digests = []
+    for name in ("a.sqlite3", "b.sqlite3"):
+        path = build_database(tmp_path / name)
+        rows = []
+        import sqlite3
+
+        conn = sqlite3.connect(path)
+        for table in ("accounts", "devices", "device_events", "transactions"):
+            rows.extend(map(str, conn.execute(f"SELECT * FROM {table} ORDER BY 1")))
+        conn.close()
+        digests.append(hashlib.sha256("".join(rows).encode()).hexdigest())
+    assert digests[0] == digests[1]

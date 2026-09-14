@@ -5,5 +5,4 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.sqlite3
-notes/runs/*.raw.json
 .DS_Store
