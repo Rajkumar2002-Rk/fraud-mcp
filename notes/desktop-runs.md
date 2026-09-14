@@ -140,8 +140,31 @@ available in the baseline window; 10 required") instead of saying "insufficient
 data". Machine-readable provenance turns out to be useful to the model as an
 input to design critique, not only to a human auditor after the fact.
 
-Fix recorded in FINDINGS.md: a `DORMANT_REACTIVATION` rule that fires on first
-activity after a long gap, deliberately *not* baseline-dependent.
+**Acted on.** `DORMANT_REACTIVATION` now ships (rules version `2026.09.2`). It
+fires on the first qualifying activity after a 90+ day gap and uses absolute
+thresholds only — 500 USD, or 3 transactions in 48 hours — so it can never skip
+for want of a baseline, which would have reproduced the exact blind spot it
+exists to cover. Its only skip condition is an account with no transaction
+history whatsoever.
+
+Two details worth calling out. On a dormant account that has *not* yet woken, it
+reports `NOT_FIRED` **armed**, naming the dormancy it is watching — ACC-1009 now
+reads "ARMED: this account is currently dormant (200 days since its last
+transaction, TXN-001490)". A tripwire a reviewer has to infer from silence is not
+much of a tripwire. And its severity is `medium`, not `high`: the signal is broad
+by construction, and the honest action is step-up authentication and a look, not
+an escalation.
+
+`ACC-1040` was planted to exercise it — dormant ~11 months, then four
+transactions opening at 1,450 USD. It fires `DORMANT_REACTIVATION` while
+`AMOUNT_SPIKE` and `NEW_GEO_HIGH_VALUE` both `SKIP`, which is precisely the
+contrast the agent described. Added as a 41st account drawing from a dedicated
+PRNG stream, so every pre-existing account and transaction id is byte-identical
+to the transcripts in `notes/runs/` (verified by diff: zero rows changed).
+
+One consequence for the record: the v1b transcript states "the universe ends at
+ACC-1039". That was true when it was written and is no longer. The transcript
+stands as written.
 
 ### It caught a defect in the synthetic data
 

@@ -28,7 +28,7 @@ from enum import StrEnum
 from statistics import median
 from typing import Any
 
-RULES_VERSION = "2026.09.1"
+RULES_VERSION = "2026.09.2"
 
 
 class Status(StrEnum):
@@ -116,6 +116,9 @@ T = {
     "SHARED_DEVICE": {"min_distinct_accounts": 3, "window_days": 30},
     "IMPOSSIBLE_TRAVEL": {"max_minutes_between": 120, "requires_country_change": True,
                           "evaluation_window_days": 30},
+    "DORMANT_REACTIVATION": {"min_dormancy_days": 90, "evaluation_window_days": 30,
+                             "high_value_absolute": 500.0, "burst_hours": 48,
+                             "burst_min_txns": 3},
 }
 
 
@@ -488,6 +491,147 @@ def _rule_impossible_travel(txns: list[Transaction], now: datetime) -> RuleOutco
     )
 
 
+def _rule_dormant_reactivation(txns: list[Transaction], now: datetime) -> RuleOutcome:
+    """Fires when a long-dormant account suddenly transacts again.
+
+    This rule exists because of a gap found by an agent, not by me. Every other
+    rule that needs a baseline - AMOUNT_SPIKE, NEW_GEO_HIGH_VALUE - degrades to
+    SKIPPED on a dormant account, because there is no recent history to compute a
+    baseline from. That is precisely the population most attractive to an account
+    takeover, and precisely the moment detection matters most: the engine was
+    silent through the first stretch of renewed activity.
+
+    So this rule uses **absolute** thresholds only. It must never skip for lack of
+    a baseline; if it did, it would reproduce the blind spot it exists to cover.
+    A dormant account that has not yet woken reports NOT_FIRED *armed*, naming the
+    dormancy it is watching, so a reviewer can see the tripwire is set rather than
+    inferring silence.
+
+    Severity is deliberately `medium`. A reactivation is a reason to step up
+    authentication and look, not to escalate on its own - the signal is broad by
+    construction, which is the price of covering a population where the sharper
+    rules cannot fire at all.
+    """
+    th = T["DORMANT_REACTIVATION"]
+    desc = (
+        f"Fires when an account transacts again within the last "
+        f"{th['evaluation_window_days']} days after {th['min_dormancy_days']}+ days of "
+        f"no activity, and the renewed activity is either {th['high_value_absolute']:.0f} USD "
+        f"or more, or {th['burst_min_txns']}+ transactions within {th['burst_hours']} hours. "
+        "Uses absolute thresholds only, so it still evaluates on accounts with no usable "
+        "baseline - the population the baseline-dependent rules cannot cover."
+    )
+    if not txns:
+        return RuleOutcome(
+            rule_id="DORMANT_REACTIVATION", name="Dormant account reactivation",
+            status=Status.SKIPPED, severity=Severity.MEDIUM, description=desc,
+            thresholds=th, observed={"transaction_count": 0},
+            skipped_reason=(
+                "This account has no transaction history at all, so there is no dormancy "
+                "gap to measure. This is the one condition under which the rule cannot "
+                "evaluate; it does NOT skip for lack of a spending baseline."
+            ),
+            explanation="Rule could not be evaluated.",
+        )
+
+    window_start = now - timedelta(days=th["evaluation_window_days"])
+    dormancy = timedelta(days=th["min_dormancy_days"])
+    days_since_last = (now - txns[-1].ts).total_seconds() / 86400
+
+    reactivation: tuple[Transaction, float] | None = None
+    for previous, current in zip(txns, txns[1:]):
+        gap = current.ts - previous.ts
+        if gap >= dormancy and current.ts >= window_start:
+            reactivation = (current, gap.total_seconds() / 86400)
+
+    observed: dict[str, Any] = {
+        "days_since_last_activity": round(days_since_last, 1),
+        "currently_dormant": days_since_last >= th["min_dormancy_days"],
+        "transaction_count": len(txns),
+        "reactivation_detected": reactivation is not None,
+    }
+
+    if reactivation is None:
+        if observed["currently_dormant"]:
+            return RuleOutcome(
+                rule_id="DORMANT_REACTIVATION", name="Dormant account reactivation",
+                status=Status.NOT_FIRED, severity=Severity.MEDIUM, description=desc,
+                thresholds=th, observed=observed,
+                explanation=(
+                    f"ARMED: this account is currently dormant "
+                    f"({days_since_last:.0f} days since its last transaction, "
+                    f"{txns[-1].txn_id}) but has not reactivated, so there is nothing to "
+                    "fire on yet. This rule will fire on the first qualifying renewed "
+                    "activity. Note that the baseline-dependent rules will still be "
+                    "unable to evaluate at that moment - this rule is the cover for that "
+                    "gap."
+                ),
+            )
+        return RuleOutcome(
+            rule_id="DORMANT_REACTIVATION", name="Dormant account reactivation",
+            status=Status.NOT_FIRED, severity=Severity.MEDIUM, description=desc,
+            thresholds=th, observed=observed,
+            explanation=(
+                f"Account has transacted within the last {days_since_last:.0f} days and "
+                f"shows no dormancy gap of {th['min_dormancy_days']}+ days followed by "
+                "recent activity."
+            ),
+        )
+
+    first, gap_days = reactivation
+    burst = [t for t in txns if first.ts <= t.ts <= first.ts + timedelta(hours=th["burst_hours"])]
+    observed.update({
+        "dormancy_gap_days": round(gap_days, 1),
+        "reactivation_txn_id": first.txn_id,
+        "reactivation_ts": first.ts.isoformat(),
+        "reactivation_amount": round(first.amount, 2),
+        "reactivation_country": first.country,
+        "txns_within_burst_window": len(burst),
+    })
+
+    high_value = first.amount >= th["high_value_absolute"]
+    bursty = len(burst) >= th["burst_min_txns"]
+    if high_value or bursty:
+        triggers = []
+        if high_value:
+            triggers.append(
+                f"The first transaction back was {first.amount:.2f} USD, at or above the "
+                f"{th['high_value_absolute']:.0f} USD absolute floor"
+            )
+        if bursty:
+            triggers.append(
+                f"{len(burst)} transactions landed within {th['burst_hours']} hours of "
+                f"reactivation (threshold: {th['burst_min_txns']})"
+            )
+        return RuleOutcome(
+            rule_id="DORMANT_REACTIVATION", name="Dormant account reactivation",
+            status=Status.FIRED, severity=Severity.MEDIUM, description=desc,
+            thresholds=th, observed=observed,
+            evidence_txn_ids=[t.txn_id for t in burst],
+            explanation=(
+                f"Account was dormant for {gap_days:.0f} days, then transacted again at "
+                f"{first.ts.isoformat()} ({first.txn_id}, {first.country}). "
+                + " and ".join(t if i == 0 else t[0].lower() + t[1:]
+                                for i, t in enumerate(triggers))
+                + ". Baseline-dependent rules cannot corroborate this - a dormant account "
+                "has no baseline - so treat this as a prompt to step up authentication and "
+                "review, not as a confirmed finding."
+            ),
+        )
+
+    return RuleOutcome(
+        rule_id="DORMANT_REACTIVATION", name="Dormant account reactivation",
+        status=Status.NOT_FIRED, severity=Severity.MEDIUM, description=desc,
+        thresholds=th, observed=observed,
+        explanation=(
+            f"Account reactivated after {gap_days:.0f} days, but the renewed activity was "
+            f"modest: {first.amount:.2f} USD (floor: {th['high_value_absolute']:.0f}) and "
+            f"{len(burst)} transaction(s) in {th['burst_hours']}h (threshold: "
+            f"{th['burst_min_txns']}). Consistent with a customer simply returning."
+        ),
+    )
+
+
 def evaluate_account(
     conn: sqlite3.Connection, account_id: str, now: datetime
 ) -> list[RuleOutcome]:
@@ -505,6 +649,7 @@ def evaluate_account(
         _rule_structuring(txns, now),
         _rule_shared_device(conn, account_id, now),
         _rule_impossible_travel(txns, now),
+        _rule_dormant_reactivation(txns, now),
     ]
 
 

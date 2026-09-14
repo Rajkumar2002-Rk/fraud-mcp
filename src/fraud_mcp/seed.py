@@ -63,6 +63,8 @@ class Seeder:
         # Separate stream for retrofits, so adding jitter to one account does
         # not shift every subsequent draw and invalidate the whole dataset.
         self.jitter = random.Random(SEED + 1)
+        # A third stream for accounts added after the original forty.
+        self.extra = random.Random(SEED + 2)
         self._txn_counter = 0
 
     # ---------- primitives ----------
@@ -118,6 +120,7 @@ class Seeder:
         self._plant_account_takeover()
         self._plant_structuring()
         self._plant_impossible_travel()
+        self._plant_dormant_reactivation()
         set_meta(self.conn, "as_of", _iso(AS_OF))
         set_meta(self.conn, "seed", str(SEED))
         set_meta(self.conn, "generator_version", "1")
@@ -247,6 +250,56 @@ class Seeder:
                       country="SG", device_id=dev)
 
 
+    def _plant_dormant_reactivation(self) -> None:
+        """ACC-1040: dormant for ~10 months, then wakes up spending.
+
+        Added after a Claude Desktop agent pointed out that every
+        baseline-dependent rule goes silent on exactly this population. It is a
+        41st account, created after the original forty and drawing from a
+        dedicated PRNG stream, so every pre-existing account and transaction id
+        stays byte-identical to the transcripts in notes/runs/.
+
+        Note what this account should produce: DORMANT_REACTIVATION fires, while
+        AMOUNT_SPIKE and NEW_GEO_HIGH_VALUE both SKIP for want of a baseline.
+        That contrast is the point - it is the case that motivated the rule.
+        """
+        acct, dev = "ACC-1040", "DEV-2040"
+        self.conn.execute(
+            "INSERT INTO accounts(account_id, customer_name, home_country, opened_at, status)"
+            " VALUES (?,?,?,?,?)",
+            (acct, "Sol Vance", "US", _iso(AS_OF - timedelta(days=1100)), "dormant"),
+        )
+        self._add_device(dev, "android", "Mozilla/5.0 (synthetic)",
+                         AS_OF - timedelta(days=800))
+
+        # Old, ordinary history - then nothing for about ten months.
+        for n in range(11):
+            ts = AS_OF - timedelta(
+                days=430 - n * 9,
+                hours=self.extra.randint(0, 23),
+                minutes=self.extra.randint(0, 59),
+            )
+            self._add_txn(acct, ts, self.extra.uniform(18, 95),
+                          merchant=MERCHANTS[n % len(MERCHANTS)], country="US", device_id=dev)
+
+        # Reactivation: a burst of four transactions six days ago, opening with a
+        # high-value purchase. Absolute thresholds catch this; a baseline cannot.
+        wake = AS_OF - timedelta(days=6, hours=2)
+        attacker_device = "DEV-RE-01"
+        self._add_device(attacker_device, "web", "Mozilla/5.0 (X11; synthetic-headless)",
+                         wake - timedelta(hours=1))
+        self._add_event(attacker_device, acct, "password_reset", wake - timedelta(minutes=20),
+                        "203.0.113.190", "US")
+        self._add_event(attacker_device, acct, "login", wake - timedelta(minutes=14),
+                        "203.0.113.190", "US")
+        for n, amount in enumerate([1450.00, 890.00, 615.00, 330.00]):
+            self._add_txn(
+                acct, wake + timedelta(hours=n * 9), amount,
+                merchant=HIGH_RISK_MERCHANTS[n % len(HIGH_RISK_MERCHANTS)],
+                country="US", device_id=attacker_device,
+            )
+
+
 PLANTED_PATTERNS = [
     {"account_id": "ACC-1007", "pattern": "velocity_burst",
      "note": "7 transactions in ~6 minutes, escalating amounts (card testing)"},
@@ -260,6 +313,9 @@ PLANTED_PATTERNS = [
      "note": "5 transfers of 9.1k-9.7k across 40 hours, just under the 10k threshold"},
     {"account_id": "ACC-1030", "pattern": "impossible_travel",
      "note": "US then SG card-present 38 minutes apart"},
+    {"account_id": "ACC-1040", "pattern": "dormant_reactivation",
+     "note": "dormant ~10 months, then a 4-transaction burst opening at 1450 USD; "
+             "fires DORMANT_REACTIVATION while the baseline rules SKIP"},
     {"account_id": "ACC-1009", "pattern": "control_dormant",
      "note": "no activity within 180 days - empty-result case, NOT fraud"},
     {"account_id": "ACC-1002", "pattern": "control_clean",

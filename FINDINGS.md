@@ -337,12 +337,17 @@ stop the agent from being wrong — it is to make sure being wrong leaves a trac
 3. **Return evidence transactions inline with a fired rule.** Every agent's
    second call was "fetch the rows this rule just cited." That round trip is pure
    overhead and a chance to fetch the wrong window.
-4. **Add a `DORMANT_REACTIVATION` rule.** Found by the Claude Desktop agent, not
-   by me: every baseline-dependent rule degrades to `SKIPPED` on a dormant
-   account, which is precisely the population most attractive to a takeover — and
-   the engine stays silent through the first stretch of renewed activity. The
-   rule would fire on first activity after a long gap and must not itself depend
-   on a baseline. See `notes/desktop-runs.md`.
+4. ~~**Add a `DORMANT_REACTIVATION` rule.**~~ **Done.** Found by the Claude
+   Desktop agent, not by me: every baseline-dependent rule degrades to `SKIPPED`
+   on a dormant account, which is precisely the population most attractive to a
+   takeover — and the engine stayed silent through the first stretch of renewed
+   activity. The rule now fires on first qualifying activity after a 90+ day gap,
+   using **absolute** thresholds only so it can never skip for want of a baseline.
+   On a dormant account that has not yet woken it reports `NOT_FIRED` *armed*,
+   naming the dormancy it is watching, so a set tripwire is visible rather than
+   inferred from silence. `ACC-1040` was planted to exercise it: it fires while
+   `AMOUNT_SPIKE` and `NEW_GEO_HIGH_VALUE` both `SKIP`, which is the contrast that
+   motivated the rule. Rules version `2026.09.2`.
 5. **Test the descriptions the way I test the code.** `test_mcp_server.py`
    already asserts that every parameter has a description and that the server
    instructions mention `check_velocity_rules` before `flag_case`. Those assertions

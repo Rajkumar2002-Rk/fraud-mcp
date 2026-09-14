@@ -157,7 +157,7 @@ case if warranted."*
 
 ### `evaluate_fraud_rules(account_id)`
 
-The authoritative risk verdict. Runs all six rules and returns which fired, which
+The authoritative risk verdict. Runs all seven rules and returns which fired, which
 did not, and which could not be evaluated. Deterministic.
 
 ```jsonc
@@ -184,7 +184,7 @@ did not, and which could not be evaluated. Deterministic.
     }
   ],
   "interpretation_contract": { "authority": "...", "your_role": "...", "skipped_is_not_clean": "..." },
-  "provenance": { "as_of": "2026-09-14T12:00:00+00:00", "rules_version": "2026.09.1", "...": "..." }
+  "provenance": { "as_of": "2026-09-14T12:00:00+00:00", "rules_version": "2026.09.2", "...": "..." }
 }
 ```
 
@@ -227,9 +227,19 @@ well-founded one.
 | `STRUCTURING` | critical | ≥3 transactions of 8500–10000 USD within 72 hours |
 | `SHARED_DEVICE` | critical | A device used by ≥3 distinct accounts within 30 days |
 | `IMPOSSIBLE_TRAVEL` | high | Two card-present transactions in different countries ≤120 minutes apart |
+| `DORMANT_REACTIVATION` | medium | An account transacts again after 90+ days of silence, opening at ≥500 USD or ≥3 transactions in 48h |
 
 Thresholds live in one dict (`rules.T`) and are quoted back in every response, so
 there are no magic numbers buried in the logic.
+
+`DORMANT_REACTIVATION` is the odd one out, and deliberately so. Every other rule
+that needs history degrades to `SKIPPED` on a dormant account — which is exactly
+the population an account takeover prefers, and exactly the moment detection
+matters. So this rule uses **absolute** thresholds only and never skips for want
+of a baseline. On a dormant account that has not yet woken it reports `NOT_FIRED`
+*armed*, naming the dormancy it is watching, so a reviewer can see the tripwire is
+set rather than inferring it from silence. It was added because an agent found the
+gap — see [FINDINGS.md](FINDINGS.md).
 
 ---
 
@@ -247,6 +257,7 @@ here", which tests nothing.
 | `ACC-1021` | Structuring | 5 transfers of 9.1k–9.7k across 40 hours, each below the 10k threshold |
 | `ACC-1030` | Impossible travel | Card-present in US, then SG 38 minutes later |
 | `ACC-1002` | **Control: clean** | Ordinary activity only — nothing should fire |
+| `ACC-1040` | Dormant reactivation | Silent ~11 months, then a 4-transaction burst opening at 1,450 USD — fires `DORMANT_REACTIVATION` while the baseline rules `SKIP` |
 | `ACC-1009` | **Control: dormant** | No activity in 180 days — the empty-result trap |
 
 The two controls are the interesting ones. `ACC-1002` catches a rules engine that

@@ -152,6 +152,22 @@ SCENARIOS: list[Scenario] = [
         ],
     ),
     Scenario(
+        name="dormant-reactivation",
+        premise="ACC-1040 has been silent for months and has just started spending.",
+        teaches=("The rule added because an agent found the gap: every baseline-dependent "
+                 "rule SKIPS here, and DORMANT_REACTIVATION fires anyway."),
+        steps=[
+            Step("evaluate_fraud_rules", {"account_id": "ACC-1040"},
+                 "The one rule that can speak when there is no baseline to speak from.",
+                 [("ok", True), ("verdict.fired_rule_ids.0", "DORMANT_REACTIVATION"),
+                  ("verdict.highest_severity_fired", "medium"),
+                  ("verdict.skipped_rule_ids.0", "AMOUNT_SPIKE")]),
+            Step("get_transactions", {"account_id": "ACC-1040", "days": 30},
+                 "The reactivation burst, with nothing before it in the window.",
+                 [("ok", True), ("transaction_count", 4)]),
+        ],
+    ),
+    Scenario(
         name="error-handling",
         premise="The client sends malformed and out-of-range arguments.",
         teaches="Every failure is a structured envelope with a remediation, never a traceback.",

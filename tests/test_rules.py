@@ -8,16 +8,19 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import timedelta
+
 from fraud_mcp.rules import (
     RULES_VERSION,
     Status,
+    Transaction,
     evaluate_account,
     overall_severity,
 )
 
 ALL_RULE_IDS = {
     "VELOCITY_BURST", "AMOUNT_SPIKE", "NEW_GEO_HIGH_VALUE",
-    "STRUCTURING", "SHARED_DEVICE", "IMPOSSIBLE_TRAVEL",
+    "STRUCTURING", "SHARED_DEVICE", "IMPOSSIBLE_TRAVEL", "DORMANT_REACTIVATION",
 }
 
 
@@ -171,3 +174,67 @@ def test_new_geo_without_new_countries_claims_no_near_miss(conn, now):
     assert outcome.status is Status.NOT_FIRED
     assert "largest_amount_in_new_country" not in outcome.observed
     assert "narrowly" not in outcome.explanation
+
+
+def test_dormant_reactivation_fires_where_baseline_rules_cannot(conn, now):
+    """The whole reason this rule exists.
+
+    ACC-1040 woke after ~11 months with a high-value burst. The baseline-dependent
+    rules must SKIP (no baseline exists), and DORMANT_REACTIVATION must still fire
+    - otherwise the engine is silent at the exact moment it matters most.
+    """
+    outcomes = outcomes_by_id(conn, "ACC-1040", now)
+    assert outcomes["DORMANT_REACTIVATION"].status is Status.FIRED
+    assert outcomes["AMOUNT_SPIKE"].status is Status.SKIPPED
+    assert outcomes["NEW_GEO_HIGH_VALUE"].status is Status.SKIPPED
+
+    fired = outcomes["DORMANT_REACTIVATION"]
+    assert fired.observed["dormancy_gap_days"] > 300
+    assert fired.observed["reactivation_amount"] == 1450.0
+    assert len(fired.evidence_txn_ids) == 4
+
+
+def test_dormant_reactivation_never_skips_for_lack_of_baseline(conn, now):
+    """It may only skip on a total absence of history - never on a thin baseline.
+
+    If this rule could skip the way AMOUNT_SPIKE does, it would reproduce the very
+    blind spot it was written to cover.
+    """
+    for account_id in ("ACC-1009", "ACC-1040", "ACC-1002", "ACC-1013"):
+        outcome = outcomes_by_id(conn, account_id, now)["DORMANT_REACTIVATION"]
+        assert outcome.status is not Status.SKIPPED, account_id
+
+
+def test_dormant_account_reports_the_rule_as_armed(conn, now):
+    """A set tripwire must be visible, not inferred from silence."""
+    outcome = outcomes_by_id(conn, "ACC-1009", now)["DORMANT_REACTIVATION"]
+    assert outcome.status is Status.NOT_FIRED
+    assert outcome.observed["currently_dormant"] is True
+    assert outcome.observed["reactivation_detected"] is False
+    assert "ARMED" in outcome.explanation
+
+
+def test_dormant_reactivation_ignores_a_modest_return(conn, now):
+    """A customer quietly coming back is not a fraud signal."""
+    from fraud_mcp.rules import _rule_dormant_reactivation
+
+    txns = [
+        Transaction(f"T{i}", "ACC-TEST", now - timedelta(days=400 - i * 5), 40.0,
+                    "Shop", "US", "card_present", "DEV-1", "settled")
+        for i in range(5)
+    ] + [
+        Transaction("T-WAKE", "ACC-TEST", now - timedelta(days=3), 62.0,
+                    "Shop", "US", "card_present", "DEV-1", "settled")
+    ]
+    outcome = _rule_dormant_reactivation(txns, now)
+    assert outcome.status is Status.NOT_FIRED
+    assert outcome.observed["reactivation_detected"] is True
+    assert "modest" in outcome.explanation
+
+
+def test_dormant_reactivation_skips_only_with_no_history_at_all(now):
+    from fraud_mcp.rules import _rule_dormant_reactivation
+
+    outcome = _rule_dormant_reactivation([], now)
+    assert outcome.status is Status.SKIPPED
+    assert "no transaction history at all" in outcome.skipped_reason

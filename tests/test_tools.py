@@ -80,14 +80,14 @@ def test_evaluate_fraud_rules_happy_path():
     assert resp["ok"] is True
     assert "STRUCTURING" in resp["verdict"]["fired_rule_ids"]
     assert resp["verdict"]["highest_severity_fired"] == "critical"
-    assert len(resp["rule_results"]) == resp["verdict"]["rules_evaluated"] == 6
+    assert len(resp["rule_results"]) == resp["verdict"]["rules_evaluated"] == 7
 
 
 def test_evaluate_fraud_rules_reports_non_firing_rules_too():
     resp = tools.evaluate_fraud_rules("ACC-1002")
     assert resp["verdict"]["fired_rule_ids"] == []
     statuses = {r["rule_id"]: r["status"] for r in resp["rule_results"]}
-    assert len(statuses) == 6
+    assert len(statuses) == 7
     assert "NOT_FIRED" in statuses.values()
 
 

@@ -173,14 +173,14 @@ def get_transactions(account_id: AccountId, days: Days) -> dict[str, Any]:
     annotations={"readOnlyHint": True, "idempotentHint": True, "openWorldHint": False},
 )
 def evaluate_fraud_rules(account_id: AccountId) -> dict[str, Any]:
-    """Run all six fraud rules against an account and return which ones fired, and why.
+    """Run all seven fraud rules against an account and return which ones fired, and why.
 
     THIS IS THE AUTHORITATIVE RISK VERDICT. The engine is deterministic: the same
     account always yields the same result. Do not second-guess it, re-derive it
     from raw transactions, or soften it.
 
     Rules evaluated: VELOCITY_BURST, AMOUNT_SPIKE, NEW_GEO_HIGH_VALUE, STRUCTURING,
-    SHARED_DEVICE, IMPOSSIBLE_TRAVEL.
+    SHARED_DEVICE, IMPOSSIBLE_TRAVEL, DORMANT_REACTIVATION.
 
     Covers, in plain terms: transaction velocity and card testing, spending
     anomalies against the account's own baseline, unfamiliar geography, money
