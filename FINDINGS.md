@@ -357,10 +357,12 @@ These matter more than the table does.
 * **Tool calls went through a CLI bridge, not native tool-calling.**
   `scripts/agent_cli.py` surfaces the real MCP schemas and performs real
   `tools/call` requests, but a native client validates and can repair arguments
-  before dispatch. Argument-shape errors are therefore *under*-represented in
-  Finding 2 relative to a native client — a real client would have caught the
-  out-of-range `days` itself. Ordering, discovery, and provenance findings are
-  unaffected by the bridge.
+  before dispatch. Argument-shape errors are therefore *over*-represented in
+  Finding 2 relative to a native client — **confirmed** in the Desktop pass, where
+  the client read `maximum: 365` off the schema and repaired `days=400` to 365
+  before the request ever left it, so the middleware was never reached. Both
+  layers are load-bearing for different clients. Ordering, discovery, and
+  provenance findings are unaffected by the bridge.
 * **n is tiny.** Four or five runs per profile, one model, one dataset, no
   repetitions. Finding 1 (4/4 versus 5/5) is a clean reversal and I'd defend it.
   Findings 5 and 6 are single observations and should be read as "did not

@@ -329,7 +329,10 @@ The short version:
   was, until the agent volunteered how it had got there.
 * **One failure no wording could fix:** with no way to list accounts or devices,
   the agent brute-forced the identifier space — 119 calls in the honest rerun.
-  That needs a fifth tool, not a better description.
+  But given the identical gap, Claude Desktop made four calls and stopped: *"if I
+  named more accounts, I'd be inventing them."* Same tools, opposite behaviour.
+  The difference was having a human to hand the question back to, which makes an
+  escalation path a safety control in its own right.
 * **The guard that mattered most wasn't in the interface at all.** It was
   `SKIPPED` as a third rule state, distinct from `NOT_FIRED`. Prose in a
   description is a suggestion; a state in the data model is a constraint.

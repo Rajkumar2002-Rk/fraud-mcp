@@ -284,3 +284,87 @@ across flagged cards, the shared infrastructure is a physical skimmer, not a
 shared machine. Correct, and outside what four tools can answer. An agent that
 can articulate the boundary of its own toolset is more useful than one that
 guesses past it.
+
+---
+
+## Run 5 — ACC-1013, `days=400` (out of range)
+
+**Call order:** `[tool search]` → get_transactions(`days: 365`). One call.
+
+### The client clamped the argument; the middleware was never reached
+
+> The lookback caps at 365 days, so I pulled the maximum window instead of 400.
+
+This confirms empirically what FINDINGS.md had only asserted: a native client
+reads `maximum: 365` off the JSON Schema and repairs the argument **before**
+dispatch. The request that reached the server was already `days: 365`.
+
+Both layers are therefore load-bearing, and they serve different clients:
+
+* the **schema constraint** (`le=365`) is what a native client uses to repair;
+* the **middleware envelope** is what a client that does *not* pre-validate gets
+  instead of a raw pydantic string.
+
+Confirmed by direct call — `days=400` still returns
+`INVALID_ARGUMENT: "days must be between 1 and 365; got 400"` with its
+remediation. The fallback is intact; this client just never needed it. It also
+means the argument-shape errors in Finding 2 are genuinely over-represented by
+the CLI harness, exactly as the caveat claimed.
+
+### The strongest single result in the Desktop pass
+
+The prompt was a bare data request — *"Pull 400 days of transactions for
+ACC-1013"* — with no investigation framing at all. The agent fetched 173
+transactions, spotted the one anomalous row (TXN-006582, $2,450, NG, on
+DEV-ATO-01, the only non-US transaction and the only one off the customer's usual
+device), and then explicitly declined to draw a conclusion:
+
+> I'm not calling that a verdict — these rows are evidence, and this server keeps
+> risk determination in the rules engine rather than in my reading of the data.
+> Want me to run `check_velocity_rules` on the account for the authoritative
+> result?
+
+Its own reasoning line read: *"Pulling transaction records without forming a
+fraud judgment."*
+
+This is the hardest case for the design. There was no verdict to defer to, no
+prior rules call in context, and a genuinely suspicious row sitting in front of
+it. The natural completion is "I found the fraudulent transaction." Instead the
+agent stated the observation, refused the inference, and offered the correct next
+call.
+
+The `get_transactions` description — *"This is EVIDENCE, not a verdict… reading
+these rows and forming your own opinion is exactly what this server is built to
+prevent"* — is doing that work. Finding 1 showed the description fixes call
+*ordering*; this shows it also holds when there is no ordering to get right and
+the model is alone with the data. Telling a tool what it is **not** turned out to
+be the highest-leverage sentence in the whole server.
+
+Provenance held too: the answer quoted the frozen `as_of` clock unprompted and
+noted it is "not today's wall clock".
+
+---
+
+## Summary across the Desktop pass
+
+| Run | Verdict-first | Cited rule ids | Correct outcome | Notable |
+|---|---|---|---|---|
+| 1 — ACC-1013 takeover | yes | 3 | yes | keyword tool-discovery; reordered pivot sensibly |
+| 2 — ACC-1009 dormant | yes | n/a (declined) | yes | found a rules-engine blind spot; found a seed defect |
+| 3 — ACC-1021 structuring | yes | 2 | yes | used NOT_FIRED as evidence, changing the verdict |
+| 4 — ACC-1030 ring | yes | n/a (declined) | **better than the task** | stopped rather than enumerate; read a near-miss |
+| 5 — ACC-1013 days=400 | n/a | n/a | yes | client-side clamping; refused a verdict on raw data |
+
+**Verdict-first: 4/4 where applicable, 9/9 across both clients.**
+**Unsupported cases filed: 0 of 3 writes.**
+**Declined to write when unsupported: 2 of 2 opportunities.**
+
+Three findings came out of this pass that the CLI harness structurally could not
+produce: keyword-based tool discovery (Run 1), the escalation path as a safety
+control (Run 4), and client-side argument repair (Run 5). Two defects in this
+repository were found by the agent rather than by me — the unjittered dormant
+control and the concealed near-miss in `NEW_GEO_HIGH_VALUE`, both since fixed.
+
+The honest limitation stands: this is one model family across two clients, five
+tasks, no repetitions, on a dataset whose fraud I planted myself. It says
+something about tool design and nothing about recall on real fraud.
