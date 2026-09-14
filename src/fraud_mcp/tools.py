@@ -24,6 +24,7 @@ from typing import Any
 
 from . import db as dbmod
 from .errors import ErrorCode, ToolError, error_envelope
+from .profile import is_v0
 from .rules import RULES_VERSION, Status, evaluate_account, overall_severity
 
 ACCOUNT_ID_RE = re.compile(r"^ACC-\d{4}$")
@@ -150,7 +151,7 @@ def get_transactions(account_id: str, days: int) -> dict[str, Any]:
                                       {"account_id": account_id, "days": days}),
         }
 
-        if not txns:
+        if not txns and not is_v0():
             # The empty-result guard. An agent that reads a zero-row response as
             # "this account is clean" is making an unsupported inference, so the
             # response says so in the payload rather than leaving it implicit.
@@ -180,6 +181,8 @@ def get_transactions(account_id: str, days: int) -> dict[str, Any]:
             }
         return payload
     except ToolError as exc:
+        if is_v0():
+            raise
         return exc.to_envelope()
     except sqlite3.Error as exc:
         return error_envelope(
@@ -211,7 +214,7 @@ def check_velocity_rules(account_id: str) -> dict[str, Any]:
                 "skipped_rule_ids": [o.rule_id for o in skipped],
             },
             "rule_results": [o.to_dict() for o in outcomes],
-            "interpretation_contract": {
+            "interpretation_contract": None if is_v0() else {
                 "authority": (
                     "This engine is the sole authority on WHICH rules fired. It is "
                     "deterministic: identical inputs always produce identical verdicts. Do not "
@@ -232,6 +235,8 @@ def check_velocity_rules(account_id: str) -> dict[str, Any]:
                                       {"account_id": account_id}),
         }
     except ToolError as exc:
+        if is_v0():
+            raise
         return exc.to_envelope()
     except sqlite3.Error as exc:
         return error_envelope(
@@ -311,7 +316,7 @@ def lookup_device_history(device_id: str) -> dict[str, Any]:
             "password_reset_count": sum(1 for e in events if e["event_type"] == "password_reset"),
             "provenance": _provenance(conn, "lookup_device_history", {"device_id": device_id}),
         }
-        if not events:
+        if not events and not is_v0():
             payload["empty_result_guidance"] = {
                 "meaning": (
                     "This device is registered but has no recorded login events. Device "
@@ -327,6 +332,8 @@ def lookup_device_history(device_id: str) -> dict[str, Any]:
             }
         return payload
     except ToolError as exc:
+        if is_v0():
+            raise
         return exc.to_envelope()
     except sqlite3.Error as exc:
         return error_envelope(
@@ -357,7 +364,9 @@ def flag_case(
             )
         severity = severity.lower()
 
-        if not isinstance(reason, str) or len(reason.strip()) < MIN_REASON_CHARS:
+        if not is_v0() and (
+            not isinstance(reason, str) or len(reason.strip()) < MIN_REASON_CHARS
+        ):
             raise ToolError(
                 ErrorCode.INVALID_ARGUMENT,
                 f"reason must be at least {MIN_REASON_CHARS} characters of substantive "
@@ -430,7 +439,7 @@ def flag_case(
             "reason": reason,
             "cited_rule_ids": cited,
             "created_at": created_at,
-            "audit": {
+            "audit": None if is_v0() else {
                 "engine_fired_rule_ids": engine_fired,
                 "engine_highest_severity": engine_severity,
                 "supported_by_engine": bool(cited) and not uncited and severity == engine_severity,
@@ -440,6 +449,8 @@ def flag_case(
                                       {"account_id": account_id, "severity": severity}),
         }
     except ToolError as exc:
+        if is_v0():
+            raise
         return exc.to_envelope()
     except sqlite3.Error as exc:
         return error_envelope(
