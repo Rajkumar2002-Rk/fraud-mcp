@@ -290,7 +290,13 @@ stop the agent from being wrong — it is to make sure being wrong leaves a trac
 3. **Return evidence transactions inline with a fired rule.** Every agent's
    second call was "fetch the rows this rule just cited." That round trip is pure
    overhead and a chance to fetch the wrong window.
-4. **Test the descriptions the way I test the code.** `test_mcp_server.py`
+4. **Add a `DORMANT_REACTIVATION` rule.** Found by the Claude Desktop agent, not
+   by me: every baseline-dependent rule degrades to `SKIPPED` on a dormant
+   account, which is precisely the population most attractive to a takeover — and
+   the engine stays silent through the first stretch of renewed activity. The
+   rule would fire on first activity after a long gap and must not itself depend
+   on a baseline. See `notes/desktop-runs.md`.
+5. **Test the descriptions the way I test the code.** `test_mcp_server.py`
    already asserts that every parameter has a description and that the server
    instructions mention `check_velocity_rules` before `flag_case`. Those assertions
    exist because the descriptions are load-bearing — Finding 1 was fixed entirely
@@ -304,8 +310,11 @@ These matter more than the table does.
 
 * **The agent is a sibling model.** These runs used Claude Code subagents — the
   same model family reading the same schemas. It is not an independent observer.
-  A Claude Desktop pass with native tool-calling is the next step, and the
-  findings above should be treated as provisional until it is done.
+  A Claude Desktop pass with native tool-calling is recorded separately in
+  [`notes/desktop-runs.md`](notes/desktop-runs.md); Findings 1 and 5 have so far
+  reproduced there, and that pass surfaced two things this harness structurally
+  could not — keyword tool-discovery, and a blind spot in the rules engine
+  itself.
 * **Tool calls went through a CLI bridge, not native tool-calling.**
   `scripts/agent_cli.py` surfaces the real MCP schemas and performs real
   `tools/call` requests, but a native client validates and can repair arguments

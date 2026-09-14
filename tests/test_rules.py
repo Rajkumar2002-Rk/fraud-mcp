@@ -143,7 +143,10 @@ def test_seeding_is_byte_reproducible(tmp_path):
 
         conn = sqlite3.connect(path)
         for table in ("accounts", "devices", "device_events", "transactions"):
-            rows.extend(map(str, conn.execute(f"SELECT * FROM {table} ORDER BY 1")))
+            # tuple(), not str(): str() on a sqlite3.Row prints its memory
+            # address, so the original version of this test hashed object
+            # identities and passed by coincidence rather than by content.
+            rows.extend(repr(tuple(r)) for r in conn.execute(f"SELECT * FROM {table} ORDER BY 1"))
         conn.close()
         digests.append(hashlib.sha256("".join(rows).encode()).hexdigest())
     assert digests[0] == digests[1]

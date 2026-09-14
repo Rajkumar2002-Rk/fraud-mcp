@@ -60,6 +60,9 @@ class Seeder:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
         self.rng = random.Random(SEED)
+        # Separate stream for retrofits, so adding jitter to one account does
+        # not shift every subsequent draw and invalidate the whole dataset.
+        self.jitter = random.Random(SEED + 1)
         self._txn_counter = 0
 
     # ---------- primitives ----------
@@ -148,8 +151,24 @@ class Seeder:
             ).fetchone()["home_country"]
             if acct == "ACC-1009":
                 # Dormant: activity exists, but all of it is >180 days old.
-                for d in range(200, 260, 7):
-                    self._add_txn(acct, AS_OF - timedelta(days=d), self.rng.uniform(20, 90),
+                #
+                # The timestamps are jittered from a *separate* PRNG stream. An
+                # agent reviewing this account in Claude Desktop noticed that the
+                # original version placed all nine transactions at exactly 7-day
+                # intervals on identical 12:00:00 timestamps - the only account in
+                # the dataset that looked machine-generated - and correctly
+                # declined to read behavioural meaning into the spacing. Realistic
+                # controls matter: a control account that announces itself as
+                # synthetic invites the agent to reason about the generator
+                # instead of the fraud. The dedicated stream keeps every other
+                # account byte-identical to earlier runs.
+                for n, d in enumerate(range(200, 260, 7)):
+                    ts = AS_OF - timedelta(
+                        days=d,
+                        hours=self.jitter.randint(-6, 6),
+                        minutes=self.jitter.randint(0, 59),
+                    )
+                    self._add_txn(acct, ts, self.rng.uniform(20, 90),
                                   country=home, device_id=dev)
                 continue
             typical = self.rng.uniform(35, 120)
