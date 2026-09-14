@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "fraud-mcp": {
+      "command": "uv",
+      "args": ["run", "--directory", ".", "fraud-mcp", "stdio"]
+    }
+  }
+}
