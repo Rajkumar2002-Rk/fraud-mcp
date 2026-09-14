@@ -278,11 +278,35 @@ def _rule_new_geo_high_value(txns: list[Transaction], now: datetime) -> RuleOutc
                 f"({', '.join(sorted(known))})."
             ),
         )
+    # Near-miss reporting. A Claude Desktop agent reviewing ACC-1030 noticed from
+    # the `observed` block that a transaction HAD occurred in a new country and
+    # missed the amount floor by 120 USD - while the explanation string said only
+    # "No high-value transactions in previously unseen countries", which is true
+    # but hides the near-miss. A NOT_FIRED that conceals how narrowly it passed
+    # invites exactly the kind of unexamined all-clear this engine exists to
+    # prevent, so the margin is now stated. This does not change the verdict:
+    # the rule still does not fire, and the threshold is unchanged.
+    new_country_txns = [t for t in recent if t.country not in known]
+    if new_country_txns:
+        closest = max(new_country_txns, key=lambda t: t.amount)
+        observed["largest_amount_in_new_country"] = round(closest.amount, 2)
+        observed["shortfall_below_min_amount"] = round(th["min_amount"] - closest.amount, 2)
+        explanation = (
+            f"Did not fire, but narrowly: {closest.txn_id} was {closest.amount:.2f} USD in "
+            f"{closest.country}, a country absent from the prior "
+            f"{th['history_lookback_days']} days, falling "
+            f"{th['min_amount'] - closest.amount:.2f} USD short of the "
+            f"{th['min_amount']:.0f} USD floor. The threshold was not met; a reviewer may "
+            "still want to see this."
+        )
+    else:
+        explanation = "No transactions in previously unseen countries."
+
     return RuleOutcome(
         rule_id="NEW_GEO_HIGH_VALUE", name="New geography with high value",
         status=Status.NOT_FIRED, severity=Severity.HIGH, description=desc,
         thresholds=th, observed=observed,
-        explanation="No high-value transactions in previously unseen countries.",
+        explanation=explanation,
     )
 
 

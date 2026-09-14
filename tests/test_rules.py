@@ -150,3 +150,24 @@ def test_seeding_is_byte_reproducible(tmp_path):
         conn.close()
         digests.append(hashlib.sha256("".join(rows).encode()).hexdigest())
     assert digests[0] == digests[1]
+
+
+def test_new_geo_not_fired_reports_a_near_miss(conn, now):
+    """A NOT_FIRED that hides how narrowly it passed is an unexamined all-clear.
+
+    ACC-1030 transacted 880 USD in SG - a new country - against a 1000 USD floor.
+    The rule must still not fire, but it must say so.
+    """
+    outcome = outcomes_by_id(conn, "ACC-1030", now)["NEW_GEO_HIGH_VALUE"]
+    assert outcome.status is Status.NOT_FIRED
+    assert outcome.observed["new_countries"] == ["SG"]
+    assert outcome.observed["largest_amount_in_new_country"] == 880.0
+    assert outcome.observed["shortfall_below_min_amount"] == 120.0
+    assert "narrowly" in outcome.explanation
+
+
+def test_new_geo_without_new_countries_claims_no_near_miss(conn, now):
+    outcome = outcomes_by_id(conn, "ACC-1002", now)["NEW_GEO_HIGH_VALUE"]
+    assert outcome.status is Status.NOT_FIRED
+    assert "largest_amount_in_new_country" not in outcome.observed
+    assert "narrowly" not in outcome.explanation

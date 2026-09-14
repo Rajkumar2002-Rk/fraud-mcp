@@ -226,3 +226,61 @@ tool inventory the client already knows about rather than from the task, which i
 why `check_velocity_rules` keeps getting found despite its narrow name. It does
 not establish that the name is safe — only that this client's query happened to
 be wide enough each time. The rename recommendation from Run 1 stands.
+
+---
+
+## Run 4 — ACC-1030, suspected ring (open-ended)
+
+**Call order:** `[tool search]` → **check_velocity_rules** → lookup_device_history
+→ get_transactions → lookup_device_history. **No `flag_case`.** Four substantive
+calls, then a stop.
+
+**Outcome:** it did not find the ring — and gave the better answer anyway. This is
+the run that changed my reading of Finding 4. The full reframing is in
+`FINDINGS.md`; the short version is that the CLI subagents swept 75 and 119 calls
+across the customer base under the identical gap, while Desktop stopped at four:
+
+> If I named more accounts, I'd be inventing them.
+
+The difference is the escalation path, not the tool surface. Desktop had a human
+to hand the question back to and used it; the subagents were told to work
+independently and had a shell that made probing free. **The ability to return a
+question to a human is itself a safety control** — and ACC-1030 is in fact
+unconnected to the ring, so the run that "failed" is the one whose conclusion was
+actually supportable from the evidence.
+
+### It read a near-miss out of the provenance block, and did not override the engine
+
+> NEW_GEO_HIGH_VALUE didn't fire only because $880 fell under its $1,000 floor,
+> despite SG being a genuinely new country for this account. The engine is the
+> authority and I'm not overriding it, but a $120 gap on a threshold is the kind
+> of thing a reviewer should see.
+
+Verified — `new_countries: ["SG"]`, `hit_count: 0`, `min_amount: 1000.0`. The
+agent recomputed the margin from `observed` and `thresholds` and surfaced it
+*without* restating the verdict.
+
+This is the deterministic-vs-model split doing precisely what it was designed to
+do. The engine decided; the model added the interpretive layer a human reviewer
+wants; neither stepped into the other's job. It is the single clearest
+demonstration in the project that shipping thresholds and observations alongside
+every verdict is worth the payload size.
+
+It also exposed weak wording on my side. The `NOT_FIRED` explanation read "No
+high-value transactions in previously unseen countries" — true, but it concealed
+that there *was* a transaction in an unseen country which missed by $120. A
+`NOT_FIRED` that hides how narrowly it passed is an unexamined all-clear, the
+same failure mode as collapsing `SKIPPED` into `NOT_FIRED`. The rule now reports
+the margin (`largest_amount_in_new_country`, `shortfall_below_min_amount`) with
+the verdict and threshold unchanged. Two tests cover it.
+
+### It named the tool gap itself
+
+> these tools can't query by merchant — you'd need whoever owns the merchant-side
+> data
+
+and proposed the alternative investigation shape: if the same merchants recur
+across flagged cards, the shared infrastructure is a physical skimmer, not a
+shared machine. Correct, and outside what four tools can answer. An agent that
+can articulate the boundary of its own toolset is more useful than one that
+guesses past it.
