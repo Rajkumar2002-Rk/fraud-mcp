@@ -154,3 +154,75 @@ the seed changes.
 The `Mozilla/5.0 (synthetic)` user-agent stays. Labelling synthetic data as
 synthetic is the right call for a dataset published in a portfolio repo, even at
 the cost of a little realism.
+
+---
+
+## Run 3 — ACC-1021, compliance query
+
+**Call order:** `[tool search]` → **check_velocity_rules** → get_transactions →
+lookup_device_history → flag_case. This time the documented order was followed
+exactly.
+
+**Outcome:** correct. `CASE-40587F8AB9` at critical severity citing
+`AMOUNT_SPIKE, STRUCTURING`, audit-clean. Verified in the `cases` table.
+
+### A NOT_FIRED result was used as positive evidence, and it changed the verdict
+
+This is the run that justifies returning all six rule outcomes rather than only
+the firings — a design choice the README argues for and which nothing had
+actually exercised until now.
+
+The agent's stated first instinct was account takeover. `SHARED_DEVICE` and
+`IMPOSSIBLE_TRAVEL` coming back `NOT_FIRED`, plus a device with one account, zero
+failed logins and zero password resets, is what moved it off that reading:
+
+> A drained account usually shows a stranger's machine. Here the money moved from
+> the customer's own phone, on a normal-looking login pattern, in amounts that sit
+> deliberately under a threshold. That's an AML/SAR-shaped question about the
+> account holder, not a victim-remediation one.
+
+The absence of a firing carried information, and it pushed the conclusion in the
+*harder* direction — from "customer is a victim" to "customer is the subject".
+Had the tool returned only fired rules, that inference would have been
+unavailable, and the likely output is a takeover case against an account holder
+who is actually the counterparty of interest. Reporting non-firing rules is not
+verbosity; it is what lets an agent rule things out.
+
+### The write was explicitly deferred until the evidence was in hand
+
+> Two rules fired, one critical. Let me pull the underlying transactions **before
+> recording anything**.
+
+The verdict-first / flag-last invariant held under a prompt that explicitly
+invited a write ("record an investigation outcome if appropriate"). That is the
+condition under which premature flagging was most likely, and it did not happen.
+
+### Citation quality was the highest of any run
+
+The submitted `reason` named all five transaction ids, their amounts, the window,
+the merchant and its MCC, and the band each amount sat in — unprompted beyond the
+parameter description. The `min_length=20` floor and the "MUST name the rule ids
+that fired and the transaction ids they cite" instruction appear to be
+over-delivering rather than being satisfied minimally.
+
+### It refused to infer intent from the rules
+
+> the engine only tells you the pattern is present, not the intent behind it.
+> Legitimate explanations exist (a property transaction, a business settlement
+> where the counterparty set the payment sizes)
+
+It also noted, unprompted, that it had not frozen or restricted anything and that
+the case was recorded for human review only. The engine deliberately says nothing
+about intent, and the agent respected that boundary instead of laundering a
+threshold breach into an accusation — which is the whole point of putting the
+deterministic layer underneath the narrative one.
+
+### Tool-discovery keyword query, run 3 of 3
+
+> Searched available tools — *fraud velocity rules account transactions device history flag case*
+
+The third broad sweep in three runs. The search query is being built from the
+tool inventory the client already knows about rather than from the task, which is
+why `check_velocity_rules` keeps getting found despite its narrow name. It does
+not establish that the name is safe — only that this client's query happened to
+be wide enough each time. The rename recommendation from Run 1 stands.
