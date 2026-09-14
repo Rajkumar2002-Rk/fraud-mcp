@@ -119,7 +119,8 @@ made uv treat the package as modified on every run.
 ### Claude Code
 
 A `.mcp.json` is committed at the repo root, so from inside the project
-directory the server is picked up automatically. Verify with `/mcp`.
+directory the server is picked up automatically. Verify with `/mcp`. If you edit
+the tool definitions, see the restart note below.
 
 ### Claude Desktop
 
@@ -150,6 +151,33 @@ Desktop sees, use its full path (`which uv`).
 
 Try: *"Account ACC-1013 was reported by a customer. Investigate it and flag a
 case if warranted."*
+
+### After editing tool names or descriptions, restart the client
+
+An MCP server is spawned once, when the client starts, and the client holds the
+schema it received for the life of that process. Editing `server.py` does not
+reach a client that is already connected — it keeps advertising the old tool
+names and the old descriptions until the process is restarted (⌘Q and reopen for
+Claude Desktop; a new session for Claude Code).
+
+This is worth stating because it is easy to miss and the failure is quiet. The
+tool schema an agent sees is a *deployed artifact* with its own lifecycle, and it
+can drift from the source that defines it. Nothing in the test suite catches the
+drift, either: the tests import the module directly and always see current code,
+so they stay green while a connected client serves something months old.
+
+It happened here. `check_velocity_rules` was renamed to `evaluate_fraud_rules`
+(see [FINDINGS.md](FINDINGS.md)) and a live session went on offering the old name
+and a description missing a rule that had since been added — tests passing
+throughout. If you change a name or a description, restart the client and confirm
+what it actually serves:
+
+```bash
+uv run python scripts/agent_cli.py list-tools
+```
+
+That prints the schemas as the server advertises them right now, which is the
+thing to compare against what your client is showing you.
 
 ---
 
